@@ -13,7 +13,7 @@ st.set_page_config(
 def cargar_datos_ultra_light():
     url_drive = "https://drive.google.com/uc?export=download&id=1ITvcXTg8o5wFT4yeXiXkc0PZawZqnGcl"
     df_raw = pd.read_parquet(url_drive)
-    
+
     df_raw = df_raw.rename(columns={
         'refYear': 'Año',
         'tradeFlow': 'Flujo',
@@ -21,7 +21,7 @@ def cargar_datos_ultra_light():
         'partnerDesc': 'Pais',
         'partnerISO': 'ISO'
     })
-    
+
     columnas_base = ['Año', 'Flujo', 'Pais', 'ISO', 'cluster', 'pc1', 'pc2', 'Valor']
     return df_raw[[c for c in columnas_base if c in df_raw.columns]].copy()
 
@@ -77,7 +77,7 @@ with tab1:
         # Agrupamos los montos reales para que la línea no pese nada en memoria
         df_temp = df_base_flujo.groupby(['Año', 'Flujo'])['Valor'].sum().reset_index()
         df_temp = df_temp.sort_values(by='Año')
-        
+
         fig_temporal = px.line(
             df_temp, x='Año', y='Valor', color='Flujo',
             title="Evolución Histórica Comercial del Perú",
@@ -88,14 +88,14 @@ with tab1:
 with tab2:
     st.subheader("Segmentación Estructural (Autoencoder + K-Means)")
     if 'pc1' in df_filtrado.columns and 'pc2' in df_filtrado.columns and 'cluster' in df_filtrado.columns:
-        
-        # EL TRUCO MAESTRO: Solo recortamos aquí. Si el año seleccionado (como 2022) 
+
+        # EL TRUCO MAESTRO: Solo recortamos aquí. Si el año seleccionado (como 2022)
         # tiene demasiadas filas, tomamos una muestra de 4,000 para el gráfico de puntos.
         if len(df_filtrado) > 4000:
             df_scatter = df_filtrado.sample(4000, random_state=42)
         else:
             df_scatter = df_filtrado.copy()
-            
+
         fig_clusters = px.scatter(
             df_scatter, x='pc1', y='pc2', color=df_scatter['cluster'].astype(str),
             title=f"Estructura de Clústeres en el Espacio Latente ({año_seleccionado})",
@@ -109,7 +109,7 @@ with tab3:
     if 'ISO' in df_filtrado.columns and 'Valor' in df_filtrado.columns:
         # Agrupamos los datos reales por país. Plotly solo dibuja un dato por país, súper ligero.
         df_mapa_data = df_filtrado.groupby(['ISO', 'Pais'])['Valor'].sum().reset_index()
-        
+
         fig_mapa = px.choropleth(
             df_mapa_data, locations='ISO', color='Valor',
             hover_name='Pais', color_continuous_scale=px.colors.sequential.Plasma,
