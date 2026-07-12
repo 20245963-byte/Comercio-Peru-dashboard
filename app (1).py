@@ -12,7 +12,7 @@ st.set_page_config(
 # 2. Carga optimizada de datos (Punto obligatorio de la rúbrica - Formato Parquet)
 @st.cache_data
 def cargar_datos():
-    url_drive = "https://drive.google.com/uc?export=download&id=1a2MzNcjPXLLSBQu_jXAcxi0NIAnFR0ez"
+    url_drive = "https://drive.google.com/uc?export=download&id=1ITvcXTg8o5wFT4yeXiXkc0PZawZqnGcl"
     # Carga la base final exportada
     df = pd.read_parquet(url_drive)
     return df
