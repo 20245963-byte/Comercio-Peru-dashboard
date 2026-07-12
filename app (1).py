@@ -14,7 +14,7 @@ st.set_page_config(
 def cargar_datos():
     url_drive = "https://drive.google.com/uc?export=download&id=1a2MzNcjPXLLSBQu_jXAcxi0NIAnFR0ez"
     # Carga la base final exportada
-    df = pd.read_parquet("url_drive")
+    df = pd.read_parquet(url_drive)
     return df
 
 try:
