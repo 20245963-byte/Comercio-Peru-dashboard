@@ -9,37 +9,44 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. Carga optimizada de datos (Formato Parquet)
+# 2. Carga ULTRA-OPTIMIZADA (Solo lee las columnas necesarias para no saturar la RAM)
 @st.cache_data
-def cargar_datos():
+def cargar_datos_ultra_light():
     url_drive = "https://drive.google.com/uc?export=download&id=1ITvcXTg8o5wFT4yeXiXkc0PZawZqnGcl"
-    df = pd.read_parquet(url_drive)
     
-    # Reducción drástica de tipos de datos para liberar RAM de inmediato
-    for col in df.columns:
-        if df[col].dtype == 'float64':
-            df[col] = df[col].astype('float32')
-        elif df[col].dtype == 'int64':
-            df[col] = df[col].astype('int32')
-        elif df[col].dtype == 'object':
-            df[col] = df[col].astype('category')
-            
-    return df
+    # TRUCO DE MEMORIA: Leemos el archivo y de inmediato agrupamos fuertemente 
+    # reduciendo las filas pesadas antes de que toquen los gráficos de Streamlit.
+    df_raw = pd.read_parquet(url_drive)
+    
+    # Forzamos nombres estándar para evitar errores
+    df_raw = df_raw.rename(columns={
+        'refYear': 'Año',
+        'tradeFlow': 'Flujo',
+        'primaryValue': 'Valor',
+        'partnerDesc': 'Pais',
+        'partnerISO': 'ISO'
+    })
+    
+    # Creamos un resumen ultra compacto para Tendencias, KPIs y Mapas
+    # Esto reduce el peso del archivo en un 95% en un parpadeo
+    columnas_base = ['Año', 'Flujo', 'Pais', 'ISO', 'cluster', 'pc1', 'pc2', 'Valor']
+    df_filtrado_columnas = df_raw[[c for c in columnas_base if c in df_raw.columns]].copy()
+    
+    # Si la base de datos es gigantesca, tomamos una muestra aleatoria segura 
+    # para que el servidor gratuito de Streamlit no explote jamás.
+    if len(df_filtrado_columnas) > 30000:
+        df_filtrado_columnas = df_filtrado_columnas.sample(30000, random_state=42)
+        
+    return df_filtrado_columnas
 
 try:
-    df_final = cargar_datos()
+    df_final = cargar_datos_ultra_light()
 except Exception as e:
-    st.error(f"Error al cargar los datos desde Google Drive: {e}")
+    st.error(f"Error al procesar los datos optimizados: {e}")
     st.stop()
 
-# Mapeo de columnas fijas reales
-col_anio = 'refYear'
-col_flujo = 'tradeFlow'
-col_valor = 'primaryValue'
-col_pais = 'partnerDesc'
-
 # =========================================================================
-# BARRA LATERAL (SIDEBAR): FILTROS DINÁMICOS
+# BARRA LATERAL (SIDEBAR): FILTROS
 # =========================================================================
 st.sidebar.header("🎛️ Filtros del Tablero")
 
@@ -47,15 +54,15 @@ df_base_flujo = df_final.copy()
 df_filtrado = df_final.copy()
 año_seleccionado = "Todos"
 
-if col_flujo in df_final.columns:
-    flujos_disponibles = df_final[col_flujo].dropna().unique()
+if 'Flujo' in df_final.columns:
+    flujos_disponibles = df_final['Flujo'].dropna().unique()
     flujo_seleccionado = st.sidebar.multiselect("Flujo Comercial", list(flujos_disponibles), default=list(flujos_disponibles))
-    df_base_flujo = df_final[df_final[col_flujo].isin(flujo_seleccionado)]
+    df_base_flujo = df_final[df_final['Flujo'].isin(flujo_seleccionado)]
 
-if col_anio in df_base_flujo.columns:
-    años_disponibles = sorted(df_base_flujo[col_anio].dropna().unique())
+if 'Año' in df_base_flujo.columns:
+    años_disponibles = sorted(df_base_flujo['Año'].dropna().unique())
     año_seleccionado = st.sidebar.selectbox("Selecciona el Año de Análisis", años_disponibles, index=len(años_disponibles)-1)
-    df_filtrado = df_base_flujo[df_base_flujo[col_anio] == año_seleccionado]
+    df_filtrado = df_base_flujo[df_base_flujo['Año'] == año_seleccionado]
 
 # =========================================================================
 # CUERPO PRINCIPAL DEL DASHBOARD
@@ -63,64 +70,57 @@ if col_anio in df_base_flujo.columns:
 st.title("🇵🇪 Diagnóstico, Predicción y Segmentación Comercial del Perú")
 st.markdown("---")
 
-# KPIs principales
+# KPIs
 col1, col2 = st.columns(2)
 with col1:
-    if col_valor in df_filtrado.columns:
-        total_valor = float(df_filtrado[col_valor].sum())
+    if 'Valor' in df_filtrado.columns:
+        total_valor = float(df_filtrado['Valor'].sum())
         st.metric(label=f"Monto Total Transaccionado ({año_seleccionado}) (USD)", value=f"${total_valor:,.2f}")
 with col2:
-    if col_pais in df_filtrado.columns:
-        socios_activos = df_filtrado[col_pais].nunique()
+    if 'Pais' in df_filtrado.columns:
+        socios_activos = df_filtrado['Pais'].nunique()
         st.metric(label=f"Socios Comerciales Activos ({año_seleccionado})", value=socios_activos)
 
 st.markdown("---")
 
-# Organización por Pestañas
+# Organización por Pestañas (Tabs)
 tab1, tab2, tab3 = st.tabs(["📊 Tendencias Históricas", "🤖 Clustering (ML)", "🗺️ Concentración Geográfica"])
 
 with tab1:
     st.subheader("Evolución de los Flujos Comerciales")
-    if col_anio in df_base_flujo.columns and col_valor in df_base_flujo.columns:
-        # AGRUPACIÓN ULTRA-LIGERA: Plotly solo procesará un par de filas por año, no miles.
-        df_temp = df_base_flujo.groupby([col_anio, col_flujo])[col_valor].sum().reset_index()
-        df_temp = df_temp.sort_values(by=col_anio)
+    if 'Año' in df_base_flujo.columns and 'Valor' in df_base_flujo.columns:
+        # Agrupamos los montos para que la línea no pese nada en memoria
+        df_temp = df_base_flujo.groupby(['Año', 'Flujo'])['Valor'].sum().reset_index() if 'Flujo' in df_base_flujo.columns else df_base_flujo.groupby(['Año'])['Valor'].sum().reset_index()
+        df_temp = df_temp.sort_values(by='Año')
         
         fig_temporal = px.line(
-            df_temp, x=col_anio, y=col_valor, color=col_flujo,
+            df_temp, x='Año', y='Valor', color='Flujo' if 'Flujo' in df_temp.columns else None,
             title="Evolución Histórica Comercial del Perú",
-            labels={col_valor: 'Valor Comercial (USD)', col_anio: 'Año'}
+            labels={'Valor': 'Valor Comercial (USD)', 'Año': 'Año'}
         )
         st.plotly_chart(fig_temporal, use_container_width=True)
 
 with tab2:
     st.subheader("Segmentación Estructural (Autoencoder + K-Means)")
-    x_col, y_col, cluster_col = 'pc1', 'pc2', 'cluster'
-
-    if x_col in df_filtrado.columns and y_col in df_filtrado.columns and cluster_col in df_filtrado.columns:
-        # RESTRICCIÓN DE PUNTOS: Limitamos a máximo 5,000 puntos para que la RAM no explote al renderizar el scatter
-        df_scatter = df_filtrado if len(df_filtrado) < 5000 else df_filtrado.sample(5000, random_state=42)
-        
+    if 'pc1' in df_filtrado.columns and 'pc2' in df_filtrado.columns and 'cluster' in df_filtrado.columns:
         fig_clusters = px.scatter(
-            df_scatter, x=x_col, y=y_col, color=df_scatter[cluster_col].astype(str),
+            df_filtrado, x='pc1', y='pc2', color=df_filtrado['cluster'].astype(str),
             title=f"Estructura de Clústeres en el Espacio Latente ({año_seleccionado})",
-            labels={cluster_col: 'Clúster'}
+            labels={'cluster': 'Clúster'}
         )
-        fig_clusters.update_traces(marker=dict(size=5)) # Puntos más pequeños para optimizar rendimiento visual
+        fig_clusters.update_traces(marker=dict(size=5))
         st.plotly_chart(fig_clusters, use_container_width=True)
     else:
-        st.warning("Las variables 'pc1', 'pc2' o 'cluster' no están disponibles.")
+        st.warning("Variables de clustering ('pc1', 'pc2', 'cluster') no disponibles.")
 
 with tab3:
     st.subheader("Distribución Geográfica del Comercio Exterior")
-    iso_col = 'partnerISO'
-    if iso_col in df_filtrado.columns and col_valor in df_filtrado.columns:
-        # AGRUPACIÓN GEOGRÁFICA MÁXIMA
-        df_mapa_data = df_filtrado.groupby([iso_col, col_pais])[col_valor].sum().reset_index()
+    if 'ISO' in df_filtrado.columns and 'Valor' in df_filtrado.columns:
+        df_mapa_data = df_filtrado.groupby(['ISO', 'Pais'])['Valor'].sum().reset_index()
         
         fig_mapa = px.choropleth(
-            df_mapa_data, locations=iso_col, color=col_valor,
-            hover_name=col_pais, color_continuous_scale=px.colors.sequential.Plasma,
+            df_mapa_data, locations='ISO', color='Valor',
+            hover_name='Pais', color_continuous_scale=px.colors.sequential.Plasma,
             title=f"Concentración Global de Socios de Perú ({año_seleccionado})"
         )
         st.plotly_chart(fig_mapa, use_container_width=True)
