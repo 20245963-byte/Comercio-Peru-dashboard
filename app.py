@@ -8,6 +8,7 @@ st.set_page_config(
     layout="wide"
 )
 
+# Carga con Muestreo de Seguridad Global
 @st.cache_data
 def cargar_datos_ultra_light():
     url_drive = "https://drive.google.com/uc?export=download&id=1ITvcXTg8o5wFT4yeXiXkc0PZawZqnGcl"
@@ -22,7 +23,14 @@ def cargar_datos_ultra_light():
     })
     
     columnas_base = ['Año', 'Flujo', 'Pais', 'ISO', 'cluster', 'pc1', 'pc2', 'Valor']
-    return df_raw[[c for c in columnas_base if c in df_raw.columns]].copy()
+    df_reducido = df_raw[[c for c in columnas_base if c in df_raw.columns]].copy()
+    
+    # CONTROL DE RAM CRÍTICO: Si la base total es un monstruo, la limitamos a 50,000 filas balanceadas.
+    # Esto garantiza que cualquier año que elijas (2022, 2020) quepa en la memoria del servidor.
+    if len(df_reducido) > 50000:
+        df_reducido = df_reducido.sample(50000, random_state=42)
+        
+    return df_reducido
 
 try:
     df_final = cargar_datos_ultra_light()
@@ -55,12 +63,12 @@ if 'Año' in df_base_flujo.columns:
 st.title("🇵🇪 Diagnóstico, Predicción y Segmentación Comercial del Perú")
 st.markdown("---")
 
-# KPIs (SIEMPRE PRECISOS: Suman el 100% de los datos reales del año)
+# KPIs
 col1, col2 = st.columns(2)
 with col1:
     if 'Valor' in df_filtrado.columns:
         total_valor = float(df_filtrado['Valor'].sum())
-        st.metric(label=f"Monto Total Transaccionado ({año_seleccionado}) (USD)", value=f"${total_valor:,.2f}")
+        st.metric(label=f"Monto Transaccionado Estimado ({año_seleccionado}) (USD)", value=f"${total_valor:,.2f}")
 with col2:
     if 'Pais' in df_filtrado.columns:
         socios_activos = df_filtrado['Pais'].nunique()
@@ -73,7 +81,6 @@ tab1, tab2, tab3 = st.tabs(["📊 Tendencias Históricas", "🤖 Clustering (ML)
 with tab1:
     st.subheader("Evolución de los Flujos Comerciales")
     if 'Año' in df_base_flujo.columns and 'Valor' in df_base_flujo.columns:
-        # SOLUCIÓN TENDENCIAS: Agrupamos por Año y Flujo. Reducimos miles de filas a solo un par de líneas ultraligeras.
         df_temp = df_base_flujo.groupby(['Año', 'Flujo'])['Valor'].sum().reset_index()
         df_temp = df_temp.sort_values(by='Año')
         
@@ -87,11 +94,9 @@ with tab1:
 with tab2:
     st.subheader("Segmentación Estructural (Autoencoder + K-Means)")
     if 'pc1' in df_filtrado.columns and 'pc2' in df_filtrado.columns and 'cluster' in df_filtrado.columns:
-        # SOLUCIÓN CLUSTERING: Si el año elegido (ej. 2022) es un monstruo de pesado, tomamos una muestra representativa.
-        df_scatter = df_filtrado if len(df_filtrado) < 4000 else df_filtrado.sample(4000, random_state=42)
-        
+        # El submuestreo interno ya no es necesario porque la base ya está controlada
         fig_clusters = px.scatter(
-            df_scatter, x='pc1', y='pc2', color=df_scatter['cluster'].astype(str),
+            df_filtrado, x='pc1', y='pc2', color=df_filtrado['cluster'].astype(str),
             title=f"Estructura de Clústeres en el Espacio Latente ({año_seleccionado})",
             labels={'cluster': 'Clúster'}
         )
@@ -101,7 +106,6 @@ with tab2:
 with tab3:
     st.subheader("Distribución Geográfica del Comercio Exterior")
     if 'ISO' in df_filtrado.columns and 'Valor' in df_filtrado.columns:
-        # SOLUCIÓN MAPA: Agrupamos por País antes de graficar. Así Plotly solo dibuja un polígono por país, no miles de transacciones.
         df_mapa_data = df_filtrado.groupby(['ISO', 'Pais'])['Valor'].sum().reset_index()
         
         fig_mapa = px.choropleth(
