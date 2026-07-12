@@ -1,23 +1,11 @@
-mport streamlit as st
-
+import streamlit as st
 import pandas as pd
-
 import plotly.express as px
 
 
 
 # 1. Configuración de la página
-
-st.set_page_config(
-
-    page_title="Dashboard Balanza Comercial Perú",
-
-    page_icon="🇵🇪",
-
-    layout="wide"
-
-)
-
+st.set_page_config(page_title="Dashboard Balanza Comercial Perú", page_icon="🇵🇪", layout="wide")
 
 
 # 2. Carga optimizada de datos (Punto obligatorio de la rúbrica - Formato Parquet)
