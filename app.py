@@ -102,7 +102,7 @@ with tab1:
             title="Evolución Histórica Comercial del Perú",
             labels={col_valor: 'Valor Comercial (USD)', col_anio: 'Periodo / Año'}
         )
-        st.plotly_chart(fig_temporal, use_container_width=True)
+       # st.plotly_chart(fig_temporal, use_container_width=True)
     else:
         st.warning("No se pudieron detectar columnas temporales válidas para graficar las tendencias.")
 
