@@ -85,6 +85,7 @@ tab1, tab2, tab3 = st.tabs(["📊 Tendencias Históricas", "🤖 Clustering (ML)
 
 with tab1:
     st.subheader("Evolución de los Flujos Comerciales")
+    st.write("Columnas detectadas en tu archivo Parquet:", list(df_base_flujo.columns))
     if col_anio and col_valor:
         columnas_agrupacion = [col_anio, col_flujo] if col_flujo else [col_anio]
         df_temp = df_base_flujo.groupby(columnas_agrupacion)[col_valor].sum().reset_index()
