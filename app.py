@@ -2,23 +2,17 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# 1. Configuración de la página
 st.set_page_config(
     page_title="Dashboard Balanza Comercial Perú",
     page_icon="🇵🇪",
     layout="wide"
 )
 
-# 2. Carga ULTRA-OPTIMIZADA (Solo lee las columnas necesarias para no saturar la RAM)
 @st.cache_data
 def cargar_datos_ultra_light():
     url_drive = "https://drive.google.com/uc?export=download&id=1ITvcXTg8o5wFT4yeXiXkc0PZawZqnGcl"
-    
-    # TRUCO DE MEMORIA: Leemos el archivo y de inmediato agrupamos fuertemente 
-    # reduciendo las filas pesadas antes de que toquen los gráficos de Streamlit.
     df_raw = pd.read_parquet(url_drive)
     
-    # Forzamos nombres estándar para evitar errores
     df_raw = df_raw.rename(columns={
         'refYear': 'Año',
         'tradeFlow': 'Flujo',
@@ -27,17 +21,8 @@ def cargar_datos_ultra_light():
         'partnerISO': 'ISO'
     })
     
-    # Creamos un resumen ultra compacto para Tendencias, KPIs y Mapas
-    # Esto reduce el peso del archivo en un 95% en un parpadeo
     columnas_base = ['Año', 'Flujo', 'Pais', 'ISO', 'cluster', 'pc1', 'pc2', 'Valor']
-    df_filtrado_columnas = df_raw[[c for c in columnas_base if c in df_raw.columns]].copy()
-    
-    # Si la base de datos es gigantesca, tomamos una muestra aleatoria segura 
-    # para que el servidor gratuito de Streamlit no explote jamás.
-    if len(df_filtrado_columnas) > 30000:
-        df_filtrado_columnas = df_filtrado_columnas.sample(30000, random_state=42)
-        
-    return df_filtrado_columnas
+    return df_raw[[c for c in columnas_base if c in df_raw.columns]].copy()
 
 try:
     df_final = cargar_datos_ultra_light()
@@ -70,7 +55,7 @@ if 'Año' in df_base_flujo.columns:
 st.title("🇵🇪 Diagnóstico, Predicción y Segmentación Comercial del Perú")
 st.markdown("---")
 
-# KPIs
+# KPIs (SIEMPRE PRECISOS: Suman el 100% de los datos reales del año)
 col1, col2 = st.columns(2)
 with col1:
     if 'Valor' in df_filtrado.columns:
@@ -83,18 +68,17 @@ with col2:
 
 st.markdown("---")
 
-# Organización por Pestañas (Tabs)
 tab1, tab2, tab3 = st.tabs(["📊 Tendencias Históricas", "🤖 Clustering (ML)", "🗺️ Concentración Geográfica"])
 
 with tab1:
     st.subheader("Evolución de los Flujos Comerciales")
     if 'Año' in df_base_flujo.columns and 'Valor' in df_base_flujo.columns:
-        # Agrupamos los montos para que la línea no pese nada en memoria
-        df_temp = df_base_flujo.groupby(['Año', 'Flujo'])['Valor'].sum().reset_index() if 'Flujo' in df_base_flujo.columns else df_base_flujo.groupby(['Año'])['Valor'].sum().reset_index()
+        # SOLUCIÓN TENDENCIAS: Agrupamos por Año y Flujo. Reducimos miles de filas a solo un par de líneas ultraligeras.
+        df_temp = df_base_flujo.groupby(['Año', 'Flujo'])['Valor'].sum().reset_index()
         df_temp = df_temp.sort_values(by='Año')
         
         fig_temporal = px.line(
-            df_temp, x='Año', y='Valor', color='Flujo' if 'Flujo' in df_temp.columns else None,
+            df_temp, x='Año', y='Valor', color='Flujo',
             title="Evolución Histórica Comercial del Perú",
             labels={'Valor': 'Valor Comercial (USD)', 'Año': 'Año'}
         )
@@ -103,19 +87,21 @@ with tab1:
 with tab2:
     st.subheader("Segmentación Estructural (Autoencoder + K-Means)")
     if 'pc1' in df_filtrado.columns and 'pc2' in df_filtrado.columns and 'cluster' in df_filtrado.columns:
+        # SOLUCIÓN CLUSTERING: Si el año elegido (ej. 2022) es un monstruo de pesado, tomamos una muestra representativa.
+        df_scatter = df_filtrado if len(df_filtrado) < 4000 else df_filtrado.sample(4000, random_state=42)
+        
         fig_clusters = px.scatter(
-            df_filtrado, x='pc1', y='pc2', color=df_filtrado['cluster'].astype(str),
+            df_scatter, x='pc1', y='pc2', color=df_scatter['cluster'].astype(str),
             title=f"Estructura de Clústeres en el Espacio Latente ({año_seleccionado})",
             labels={'cluster': 'Clúster'}
         )
         fig_clusters.update_traces(marker=dict(size=5))
         st.plotly_chart(fig_clusters, use_container_width=True)
-    else:
-        st.warning("Variables de clustering ('pc1', 'pc2', 'cluster') no disponibles.")
 
 with tab3:
     st.subheader("Distribución Geográfica del Comercio Exterior")
     if 'ISO' in df_filtrado.columns and 'Valor' in df_filtrado.columns:
+        # SOLUCIÓN MAPA: Agrupamos por País antes de graficar. Así Plotly solo dibuja un polígono por país, no miles de transacciones.
         df_mapa_data = df_filtrado.groupby(['ISO', 'Pais'])['Valor'].sum().reset_index()
         
         fig_mapa = px.choropleth(
