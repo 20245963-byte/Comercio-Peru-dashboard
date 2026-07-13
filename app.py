@@ -2,16 +2,17 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
+# 1. Configuración de la página
 st.set_page_config(
     page_title="Dashboard Balanza Comercial Perú",
     page_icon="🇵🇪",
     layout="wide"
 )
 
-# 1. Carga completa (Ya NO recortamos los datos al cargar para mantener los montos reales)
+# 2. Carga ULTRA-OPTIMIZADA
 @st.cache_data
 def cargar_datos_ultra_light():
-    url_drive = "https://drive.google.com/uc?export=download&id=1qt60w-36iZffOn3sYvwb3WPDScR5O3EA"
+    url_drive = "https://drive.google.com/uc?export=download&id=1ITvcXTg8o5wFT4yeXiXkc0PZawZqnGcl"
     df_raw = pd.read_parquet(url_drive)
 
     df_raw = df_raw.rename(columns={
@@ -32,7 +33,7 @@ except Exception as e:
     st.stop()
 
 # =========================================================================
-# BARRA LATERAL (SIDEBAR): FILTROS
+# BARRA LATERAL (SIDEBAR): FILTROS INDEPENDIENTES
 # =========================================================================
 st.sidebar.header("🎛️ Filtros del Tablero")
 
@@ -56,7 +57,7 @@ if 'Año' in df_base_flujo.columns:
 st.title("🇵🇪 Diagnóstico, Predicción y Segmentación Comercial del Perú")
 st.markdown("---")
 
-# KPIs (¡AHORA 100% REALES DIRECTOS DE TU BASE!)
+# KPIs 100% REALES DIRECTOS DE TU BASE LIMPIA
 col1, col2 = st.columns(2)
 with col1:
     if 'Valor' in df_filtrado.columns:
@@ -69,12 +70,13 @@ with col2:
 
 st.markdown("---")
 
+# Organización por Pestañas (Tabs)
 tab1, tab2, tab3 = st.tabs(["📊 Tendencias Históricas", "🤖 Clustering (ML)", "🗺️ Concentración Geográfica"])
 
 with tab1:
     st.subheader("Evolución de los Flujos Comerciales")
     if 'Año' in df_base_flujo.columns and 'Valor' in df_base_flujo.columns:
-        # Agrupamos los montos reales para que la línea no pese nada en memoria
+        # Agrupación veloz para la línea de tiempo histórica
         df_temp = df_base_flujo.groupby(['Año', 'Flujo'])['Valor'].sum().reset_index()
         df_temp = df_temp.sort_values(by='Año')
 
@@ -87,13 +89,9 @@ with tab1:
 
 with tab2:
     st.subheader("Segmentación Estructural (Autoencoder + K-Means)")
-    # === LÍNEA TEMPORAL PARA AUDITORÍA ===
-    st.write("Columnas actuales en tu NUEVO Parquet:", list(df_filtrado.columns))
-    # =====================================
     if 'pc1' in df_filtrado.columns and 'pc2' in df_filtrado.columns and 'cluster' in df_filtrado.columns:
-
-        # EL TRUCO MAESTRO: Solo recortamos aquí. Si el año seleccionado (como 2022)
-        # tiene demasiadas filas, tomamos una muestra de 4,000 para el gráfico de puntos.
+        
+        # Muestreo interno de seguridad para evitar caídas de RAM en años pesados (ej. 2022)
         if len(df_filtrado) > 4000:
             df_scatter = df_filtrado.sample(4000, random_state=42)
         else:
@@ -106,11 +104,13 @@ with tab2:
         )
         fig_clusters.update_traces(marker=dict(size=5))
         st.plotly_chart(fig_clusters, use_container_width=True)
+    else:
+        st.warning("⚠️ Variables de clustering ('pc1', 'pc2', 'cluster') no encontradas en el archivo Parquet.")
 
 with tab3:
     st.subheader("Distribución Geográfica del Comercio Exterior")
     if 'ISO' in df_filtrado.columns and 'Valor' in df_filtrado.columns:
-        # Agrupamos los datos reales por país. Plotly solo dibuja un dato por país, súper ligero.
+        # Agrupación veloz por país para que el mapa renderice al instante
         df_mapa_data = df_filtrado.groupby(['ISO', 'Pais'])['Valor'].sum().reset_index()
 
         fig_mapa = px.choropleth(
