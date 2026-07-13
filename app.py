@@ -87,6 +87,9 @@ with tab1:
 
 with tab2:
     st.subheader("Segmentación Estructural (Autoencoder + K-Means)")
+    # === LÍNEA TEMPORAL PARA AUDITORÍA ===
+    st.write("Columnas actuales en tu NUEVO Parquet:", list(df_filtrado.columns))
+    # =====================================
     if 'pc1' in df_filtrado.columns and 'pc2' in df_filtrado.columns and 'cluster' in df_filtrado.columns:
 
         # EL TRUCO MAESTRO: Solo recortamos aquí. Si el año seleccionado (como 2022)
