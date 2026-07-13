@@ -12,7 +12,7 @@ st.set_page_config(
 # 2. Carga ULTRA-OPTIMIZADA
 @st.cache_data
 def cargar_datos_ultra_light():
-    url_drive = "https://drive.google.com/uc?export=download&id=1ITvcXTg8o5wFT4yeXiXkc0PZawZqnGcl"
+    url_drive = "https://drive.google.com/uc?export=download&id=1a2MzNcjPXLLSBQu_jXAcxi0NIAnFR0ez"
     df_raw = pd.read_parquet(url_drive)
 
     df_raw = df_raw.rename(columns={
